@@ -4,7 +4,7 @@ description: "Class of 2027"
 owner_name: Neil Chandra
 github_username: neil9674 
 github_repo: "neil_2027" 
-baseurl: "/neil_2027" 
+baseurl: "/pages" 
 future: true
 incremental: true
 remote_theme: jekyll/minima@d4d779a
