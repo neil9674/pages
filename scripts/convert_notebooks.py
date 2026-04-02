@@ -8,6 +8,7 @@ import sys
 import subprocess
 from hashlib import sha256
 import concurrent.futures, traceback, re
+import unicodedata
 
 if __name__ == "__main__":
     from progress_bar import ProgressBar
@@ -68,10 +69,13 @@ def convert_notebook_to_markdown_with_front_matter(notebook_file):
             + "\n".join(f"{key}: {value}" for key, value in front_matter.items())
             + "\n---\n\n"
         )
+        # Normalize unicode and replace problematic characters, to avoid encoding crashes in CI
+        markdown = unicodedata.normalize("NFC", markdown)
+        front_matter_content = unicodedata.normalize("NFC", front_matter_content)
         markdown_with_front_matter = front_matter_content + markdown
         destination_path = get_relative_output_path(notebook_file)
         ensure_directory_exists(destination_path)
-        with open(destination_path, "w", encoding="utf-8") as file:
+        with open(destination_path, "w", encoding="utf-8", errors="replace") as file:
             file.write(markdown_with_front_matter)
 
 
@@ -82,7 +86,9 @@ def convert_single_notebook(notebook_file):
     except ConversionException as e:
         print(f"Conversion error for {notebook_file}: {str(e)}")
         error_cleanup(notebook_file)
-        sys.exit(1)
+    except Exception as e:
+        print(f"Unexpected error for {notebook_file}: {str(e)}")
+        error_cleanup(notebook_file)
 
 
 def process_notebook(notebook_file):
@@ -96,8 +102,6 @@ def process_notebook(notebook_file):
 
 
 def convert_notebooks():
-    maxCores = os.cpu_count()  # get the number of cores available on the system
-
     notebook_files = glob.glob(f"{notebook_directory}/**/*.ipynb", recursive=True)
 
     # create progress bar
@@ -105,24 +109,15 @@ def convert_notebooks():
         userInfo="Notebook conversion progress:", total=(len(notebook_files))
     )
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=maxCores) as executor:
-        futures = {
-            executor.submit(process_notebook, notebook_file): notebook_file
-            for notebook_file in notebook_files
-        }
-
-        for future in concurrent.futures.as_completed(futures):
-            notebook_file = futures[future]
-            try:
-                future.result()
-            except Exception as e:
-                print(
-                    f"Error occurred during notebook processing: {notebook_file}\n{traceback.format_exc()}"
-                )
-            finally:
-                rel_path = os.path.relpath(notebook_file, notebook_directory)
-                convertBar.set_suffix(rel_path)
-                convertBar.continue_progress()
+    for notebook_file in notebook_files:
+        try:
+            process_notebook(notebook_file)
+        except Exception as e:
+            print(f"Error occurred during notebook processing: {notebook_file}\n{traceback.format_exc()}")
+        finally:
+            rel_path = os.path.relpath(notebook_file, notebook_directory)
+            convertBar.set_suffix(rel_path)
+            convertBar.continue_progress()
 
     convertBar.end_progress()
 
@@ -147,6 +142,9 @@ def convert_mermaid_to_image(mermaid_code):
             )
         except subprocess.CalledProcessError as e:
             print(f"Error converting mermaid diagram: {e}")
+            return None
+        except FileNotFoundError as e:
+            print(f"Mermaid CLI not found (mmdc). Install mermaid-cli to generate diagrams: {e}")
             return None
     return image_path
 
