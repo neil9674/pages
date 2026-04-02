@@ -7,9 +7,8 @@ github_repo: "neil_2027"
 baseurl: "/neil_2027" 
 future: true
 incremental: true
-remote_theme: jekyll/minima@d4d779a
+theme: minima
 plugins:
-  - jekyll-remote-theme
   - jekyll-include-cache
 minima:
   skin: dark
@@ -23,3 +22,8 @@ minima:
     - navigation/section/csa.md 
     - navigation/blog.md
     - navigation/search.md
+exclude:
+  - venv
+  - .venv
+  - node_modules
+  - .git
