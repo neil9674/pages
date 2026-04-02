@@ -51,6 +51,30 @@ def get_relative_output_path(notebook_file):
     return os.path.join(destination_directory, markdown_filename)
 
 
+def protect_liquid_in_code_blocks(markdown):
+    lines = markdown.splitlines(keepends=True)
+    output = []
+    in_code_block = False
+
+    for line in lines:
+        if line.startswith("```"):
+            if not in_code_block:
+                output.append("{% raw %}\n")
+                output.append(line)
+                in_code_block = True
+            else:
+                output.append(line)
+                output.append("{% endraw %}\n")
+                in_code_block = False
+        else:
+            output.append(line)
+
+    if in_code_block:
+        output.append("{% endraw %}\n")
+
+    return "".join(output)
+
+
 def ensure_directory_exists(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
@@ -72,6 +96,10 @@ def convert_notebook_to_markdown_with_front_matter(notebook_file):
         # Normalize unicode and replace problematic characters, to avoid encoding crashes in CI
         markdown = unicodedata.normalize("NFC", markdown)
         front_matter_content = unicodedata.normalize("NFC", front_matter_content)
+
+        # Prevent liquid template parsing errors inside code blocks (e.g., {{ ... }}).
+        markdown = protect_liquid_in_code_blocks(markdown)
+
         markdown_with_front_matter = front_matter_content + markdown
         destination_path = get_relative_output_path(notebook_file)
         ensure_directory_exists(destination_path)
